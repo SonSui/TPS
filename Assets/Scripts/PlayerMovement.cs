@@ -1,6 +1,19 @@
 using UnityEngine;
 using System.Collections.Generic;
 
+[System.Serializable]
+public class WeaponData
+{
+    public GameObject prefab;
+    public int durability;
+
+    public WeaponData(GameObject prefab, int durability)
+    {
+        this.prefab = prefab;
+        this.durability = durability;
+    }
+}
+
 [RequireComponent(typeof(CharacterController))]
 public class PlayerMovement : MonoBehaviour
 {
@@ -17,8 +30,8 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("武器関連")]
     public GameObject weaponBox;             // 武器の親オブジェクト
-    public List<GameObject> weapons;         // 所持武器のリスト
-    private int currentWeaponIndex = 0;      // 現在の武器インデックス
+    public List<WeaponData> weapons;         // 所持武器のリスト
+    private int currentWeaponIndex = -1;      // 現在の武器インデックス
 
     [Header("プレイヤーモデル")]
     public GameObject playerModel;           // プレイヤーモデルのGameObject
@@ -45,6 +58,7 @@ public class PlayerMovement : MonoBehaviour
     {
         controller = GetComponent<CharacterController>();
         mainCam = Camera.main.transform; // メインカメラを取得
+        SwitchWeapon(); // 初期武器を設定
     }
 
     void Update()
@@ -96,29 +110,75 @@ public class PlayerMovement : MonoBehaviour
         {
             // 攻撃アニメーションを再生
             playerAnimator.SetTrigger("Attack");
+            if (currentWeaponIndex >= 0 && currentWeaponIndex < weapons.Count)
+            {
+                WeaponData currentWeapon = weapons[currentWeaponIndex];
+                currentWeapon.durability--;
+
+                Debug.Log("Attack with: " + currentWeapon.prefab.name + " Durability now: " + currentWeapon.durability);
+
+                if (currentWeapon.durability <= 0)
+                {
+                    Debug.Log("Weapon broke: " + currentWeapon.prefab.name);
+
+                    if (weaponBox.transform.childCount > 0)
+                    {
+                        Destroy(weaponBox.transform.GetChild(0).gameObject);
+                    }
+
+                    weapons.RemoveAt(currentWeaponIndex);
+
+                    if (weapons.Count > 0)
+                    {
+                        SwitchWeapon(); // 切り替える
+                    }
+                    else
+                    {
+                        currentWeaponIndex = -1; // 武器なし状態
+                    }
+                }
+            }
         }
         if (Input.GetButtonDown("Fire2"))
         {
-            int weaponCount = weapons.Count;
-            currentWeaponIndex = (currentWeaponIndex + 1) % weaponCount; // 武器を切り替え
-            if (weaponBox.transform.childCount > 0)
-            {
-                Transform oldWeapon = weaponBox.transform.GetChild(0);
-                if (oldWeapon != null)
-                {
-                    Destroy(oldWeapon.gameObject); // 古い武器を削除
-                }
-            }
-            if (currentWeaponIndex < weaponCount)
-            {
-                GameObject newWeapon = Instantiate(weapons[currentWeaponIndex], weaponBox.transform);
-                newWeapon.transform.localPosition = Vector3.zero; // 武器の位置をリセット
-                newWeapon.transform.localRotation = Quaternion.identity; // 武器の回転をリセット
-            }
+            SwitchWeapon(); // 武器を切り替え
         }
 
         // 重力処理
         velocity.y += gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
+    }
+    void SwitchWeapon()
+    {
+        int weaponCount = weapons.Count;
+        if (weaponCount == 0)
+        {
+            Debug.LogWarning("No weapons available to switch.");
+            return;
+        }
+        currentWeaponIndex = (currentWeaponIndex + 1) % weaponCount; // 武器を切り替え
+        if (weaponBox.transform.childCount > 0)
+        {
+            Transform oldWeapon = weaponBox.transform.GetChild(0);
+            if (oldWeapon != null)
+            {
+                Destroy(oldWeapon.gameObject); // 古い武器を削除
+            }
+        }
+        if (currentWeaponIndex < weaponCount)
+        {
+            GameObject newWeapon = Instantiate(weapons[currentWeaponIndex].prefab, weaponBox.transform);
+            newWeapon.transform.localPosition = Vector3.zero; // 武器の位置をリセット
+            newWeapon.transform.localRotation = Quaternion.identity; // 武器の回転をリセット
+        }
+    }
+    public void PickUpWeapon(GameObject prefab,int durability)
+    {
+        if (prefab!= null)
+        {
+            WeaponData weaponData = new WeaponData(prefab, durability);
+            weapons.Add(weaponData);
+            Debug.Log("PickUp:" + weaponData.prefab.name+ " Durability:" + weaponData.durability);
+        }
     }
 }
